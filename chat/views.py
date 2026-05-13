@@ -1,15 +1,51 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.db.models import Max
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from django.views.generic import CreateView, DetailView, TemplateView
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
 from datetime import timedelta
 
 from accounts.models import CustomUser
 from .forms import ChatRoomForm, GroupImageForm, GroupMembersForm, MessageForm
-from .models import ChatRoom, Friend, FriendRequest
+from .models import ChatRoom, Friend, FriendRequest, Message, MessageRead
+
+
+def unread_counts_for(user, rooms):
+    room_ids = [room.id for room in rooms]
+    reads = {
+        item.room_id: item.last_read_at
+        for item in MessageRead.objects.filter(user=user, room_id__in=room_ids)
+    }
+    counts = {}
+    for room in rooms:
+        unread = Message.objects.filter(room=room).exclude(sender=user)
+        if room.id in reads:
+            unread = unread.filter(timestamp__gt=reads[room.id])
+        counts[room.id] = unread.count()
+    return counts
+
+
+def avatar_url_for(user):
+    if getattr(user, 'has_profile_picture', False):
+        return user.profile_picture.url
+    return ''
+
+
+def notify_user(user_id, event, **payload):
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f'user_{user_id}',
+        {
+            'type': 'notify',
+            'event': event,
+            **payload,
+        },
+    )
 
 
 class ChatHomeView(LoginRequiredMixin, TemplateView):
@@ -68,13 +104,15 @@ class ChatHomeView(LoginRequiredMixin, TemplateView):
         group_chats = (
             ChatRoom.objects.filter(chat_type=ChatRoom.GROUP, members=user)
             .prefetch_related('members', 'messages')
-            .order_by('-created_at')
+            .annotate(last_message_at=Max('messages__timestamp'))
+            .order_by('-last_message_at', '-created_at')
         )
         direct_rooms = (
             ChatRoom.objects
             .filter(chat_type=ChatRoom.DIRECT, members=user)
             .prefetch_related('members')
-            .order_by('-created_at')
+            .annotate(last_message_at=Max('messages__timestamp'))
+            .order_by('-last_message_at', '-created_at')
         )
         recent_chats = []
         seen_friend_ids = set()
@@ -83,6 +121,12 @@ class ChatHomeView(LoginRequiredMixin, TemplateView):
             if other and other.id not in seen_friend_ids:
                 recent_chats.append({'room': room, 'friend': other})
                 seen_friend_ids.add(other.id)
+        unread_counts = unread_counts_for(
+            user,
+            list(group_chats) + [item['room'] for item in recent_chats],
+        )
+        for item in recent_chats:
+            item['unread_count'] = unread_counts.get(item['room'].id, 0)
 
         context.update({
             'public_room': public_room,
@@ -98,7 +142,15 @@ class ChatHomeView(LoginRequiredMixin, TemplateView):
             'search_text': search_text,
             'search_results': search_results,
             'recent_chats': recent_chats,
-            'group_chats': [{'room': room, 'title': room.title_for(user)} for room in group_chats],
+            'group_chats': [
+                {
+                    'room': room,
+                    'title': room.title_for(user),
+                    'unread_count': unread_counts.get(room.id, 0),
+                }
+                for room in group_chats
+            ],
+            'unread_counts': unread_counts,
         })
         return context
 
@@ -119,6 +171,11 @@ class ChatRoomDetailView(LoginRequiredMixin, DetailView):
             messages.error(request, 'Та энэ чат руу хандах эрхгүй байна.')
             return redirect('chat_home')
 
+        MessageRead.objects.update_or_create(
+            room=room,
+            user=user,
+            defaults={'last_read_at': timezone.now()},
+        )
         self.object = room
         return super().dispatch(request, *args, **kwargs)
 
@@ -205,6 +262,17 @@ def send_friend_request(request, user_id):
         request_obj.status = FriendRequest.PENDING
         request_obj.save(update_fields=['status', 'updated_at'])
 
+    notify_user(
+        receiver.id,
+        'friend_request',
+        request_id=request_obj.id,
+        sender_id=request.user.id,
+        username=request.user.username,
+        avatar_text=request.user.username[:1].upper(),
+        avatar_url=avatar_url_for(request.user),
+        accept_url=f'/chat/friend/request/{request_obj.id}/accept/',
+        reject_url=f'/chat/friend/request/{request_obj.id}/reject/',
+    )
     messages.success(request, f'{receiver.username} руу найзын хүсэлт илгээлээ.')
     return redirect('chat_home')
 
@@ -224,6 +292,18 @@ def accept_friend_request(request, request_id):
     Friend.objects.get_or_create(user=friend_request.sender, friend=request.user)
     friend_request.status = FriendRequest.ACCEPTED
     friend_request.save(update_fields=['status', 'updated_at'])
+    notify_user(
+        friend_request.sender_id,
+        'friend_request_resolved',
+        request_id=friend_request.id,
+        status=FriendRequest.ACCEPTED,
+        friend_id=request.user.id,
+        username=request.user.username,
+        avatar_text=request.user.username[:1].upper(),
+        avatar_url=avatar_url_for(request.user),
+        chat_url=f'/chat/direct/{request.user.id}/',
+    )
+    notify_user(request.user.id, 'friend_request_removed', request_id=friend_request.id)
     messages.success(request, f'{friend_request.sender.username} таны найз боллоо.')
     return redirect('chat_home')
 
@@ -241,6 +321,15 @@ def reject_friend_request(request, request_id):
     )
     friend_request.status = FriendRequest.REJECTED
     friend_request.save(update_fields=['status', 'updated_at'])
+    notify_user(
+        friend_request.sender_id,
+        'friend_request_resolved',
+        request_id=friend_request.id,
+        status=FriendRequest.REJECTED,
+        friend_id=request.user.id,
+        username=request.user.username,
+    )
+    notify_user(request.user.id, 'friend_request_removed', request_id=friend_request.id)
     messages.info(request, 'Найзын хүсэлтийг татгалзлаа.')
     return redirect('chat_home')
 

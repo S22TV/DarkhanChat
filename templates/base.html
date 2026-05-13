@@ -601,6 +601,35 @@
             color: var(--muted);
         }
 
+        .room-link {
+            position: relative;
+        }
+
+        .unread-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20px;
+            height: 20px;
+            margin-left: auto;
+            padding: 0 6px;
+            border-radius: 999px;
+            background: #dc2626;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 850;
+            line-height: 1;
+        }
+
+        .unread-badge.d-none {
+            display: none;
+        }
+
+        .request-list {
+            display: grid;
+            gap: 6px;
+        }
+
         .modal-search {
             margin-bottom: 12px;
         }

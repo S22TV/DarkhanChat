@@ -117,3 +117,15 @@ class Message(models.Model):
 
     def __str__(self):
         return f"{self.sender.username}: {self.content[:30]}"
+
+
+class MessageRead(models.Model):
+    room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE, related_name='read_states')
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name='message_reads')
+    last_read_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('room', 'user')
+
+    def __str__(self):
+        return f"{self.user.username} read {self.room_id} at {self.last_read_at}"

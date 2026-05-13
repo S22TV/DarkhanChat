@@ -24,7 +24,7 @@
 
         <div class="section-title">Группүүд</div>
         {% for item in group_chats %}
-            <a href="{% url 'chat_room' item.room.id %}" class="room-link">
+            <a href="{% url 'chat_room' item.room.id %}" class="room-link" data-room-id="{{ item.room.id }}">
                 {% if item.room.image %}
                     <img src="{{ item.room.image.url }}" class="avatar-img" alt="Групп">
                 {% else %}
@@ -34,6 +34,7 @@
                     <strong>{{ item.title }}</strong>
                     <small>{{ item.room.members.count }} гишүүнтэй</small>
                 </span>
+                <span class="unread-badge {% if not item.unread_count %}d-none{% endif %}" data-unread-badge>{{ item.unread_count }}</span>
             </a>
         {% empty %}
             <p class="empty-note">Одоогоор групп чат алга.</p>
@@ -83,8 +84,9 @@
         {% endif %}
 
         <div class="section-title">Сүүлд чатласан</div>
+        <div id="recent-chat-list">
         {% for item in recent_chats %}
-            <a href="{% url 'chat_room' item.room.id %}" class="room-link">
+            <a href="{% url 'chat_room' item.room.id %}" class="room-link" data-room-id="{{ item.room.id }}">
                 {% if item.friend.has_profile_picture %}
                     <img src="{{ item.friend.profile_picture.url }}" class="avatar-img" alt="{{ item.friend.username }}">
                 {% else %}
@@ -94,10 +96,12 @@
                     <strong>{{ item.friend.username }}</strong>
                     <small>Хувийн чат</small>
                 </span>
+                <span class="unread-badge {% if not item.unread_count %}d-none{% endif %}" data-unread-badge>{{ item.unread_count }}</span>
             </a>
         {% empty %}
-            <p class="empty-note">Сүүлд чатласан хүн алга.</p>
+            <p class="empty-note" id="recent-empty">Сүүлд чатласан хүн алга.</p>
         {% endfor %}
+        </div>
     </aside>
 
     <main class="chat-main welcome-panel">
@@ -130,10 +134,11 @@
             <p class="empty-note">Online найз алга.</p>
         {% endfor %}
 
-        {% if incoming_requests %}
+        <div id="incoming-request-section" {% if not incoming_requests %}class="d-none"{% endif %}>
             <div class="section-title">Ирсэн хүсэлтүүд</div>
+            <div id="incoming-request-list" class="request-list">
             {% for friend_request in incoming_requests %}
-                <div class="person-row">
+                <div class="person-row" data-request-id="{{ friend_request.id }}">
                     {% if friend_request.sender.has_profile_picture %}
                         <img src="{{ friend_request.sender.profile_picture.url }}" class="avatar-img" alt="{{ friend_request.sender.username }}">
                     {% else %}
@@ -152,12 +157,14 @@
                     </span>
                 </div>
             {% endfor %}
-        {% endif %}
+            </div>
+        </div>
 
-        {% if outgoing_requests %}
+        <div id="outgoing-request-section" {% if not outgoing_requests %}class="d-none"{% endif %}>
             <div class="section-title">Илгээсэн хүсэлтүүд</div>
+            <div id="outgoing-request-list" class="request-list">
             {% for friend_request in outgoing_requests %}
-                <div class="person-row">
+                <div class="person-row" data-request-id="{{ friend_request.id }}" data-friend-id="{{ friend_request.receiver_id }}">
                     {% if friend_request.receiver.has_profile_picture %}
                         <img src="{{ friend_request.receiver.profile_picture.url }}" class="avatar-img" alt="{{ friend_request.receiver.username }}">
                     {% else %}
@@ -169,7 +176,147 @@
                     </span>
                 </div>
             {% endfor %}
-        {% endif %}
+            </div>
+        </div>
     </aside>
 </div>
+
+<script>
+    (function() {
+        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const socket = new WebSocket(`${wsScheme}://${window.location.host}/ws/notifications/`);
+        const recentList = document.getElementById('recent-chat-list');
+        const recentEmpty = document.getElementById('recent-empty');
+        const incomingSection = document.getElementById('incoming-request-section');
+        const incomingList = document.getElementById('incoming-request-list');
+        const outgoingSection = document.getElementById('outgoing-request-section');
+        const outgoingList = document.getElementById('outgoing-request-list');
+
+        function csrfToken() {
+            const input = document.querySelector('input[name="csrfmiddlewaretoken"]');
+            if (input) return input.value;
+            const match = document.cookie.match(/(?:^|; )csrftoken=([^;]+)/);
+            return match ? decodeURIComponent(match[1]) : '';
+        }
+
+        function avatarNode(data, muted) {
+            if (data.avatar_url) {
+                const img = document.createElement('img');
+                img.src = data.avatar_url;
+                img.className = 'avatar-img';
+                img.alt = data.username || data.title || '';
+                return img;
+            }
+            const span = document.createElement('span');
+            span.className = `avatar ${muted ? 'muted' : ''}`;
+            span.textContent = data.avatar_text || (data.username || data.title || '#').slice(0, 1).toUpperCase();
+            return span;
+        }
+
+        function setBadge(link, count) {
+            let badge = link.querySelector('[data-unread-badge]');
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'unread-badge';
+                badge.dataset.unreadBadge = '';
+                link.appendChild(badge);
+            }
+            badge.textContent = count;
+            badge.classList.toggle('d-none', !count);
+        }
+
+        function upsertChat(data) {
+            let link = document.querySelector(`[data-room-id="${data.room_id}"]`);
+            if (data.chat_type === 'group') {
+                if (link) setBadge(link, data.unread_count || 1);
+                return;
+            }
+            if (!recentList) return;
+            if (!link) {
+                link = document.createElement('a');
+                link.className = 'room-link';
+                link.href = data.room_url;
+                link.dataset.roomId = data.room_id;
+                link.appendChild(avatarNode(data, true));
+
+                const text = document.createElement('span');
+                const title = document.createElement('strong');
+                title.textContent = data.title;
+                const subtitle = document.createElement('small');
+                subtitle.textContent = data.subtitle || 'Шинэ зурвас';
+                text.appendChild(title);
+                text.appendChild(subtitle);
+                link.appendChild(text);
+            } else {
+                const small = link.querySelector('small');
+                if (small) small.textContent = data.subtitle || 'Шинэ зурвас';
+            }
+            setBadge(link, data.unread_count || 1);
+            if (recentEmpty) recentEmpty.remove();
+            recentList.prepend(link);
+        }
+
+        function requestRow(data) {
+            const row = document.createElement('div');
+            row.className = 'person-row';
+            row.dataset.requestId = data.request_id;
+            row.appendChild(avatarNode(data, false));
+
+            const name = document.createElement('span');
+            name.className = 'person-name';
+            name.textContent = data.username;
+            row.appendChild(name);
+
+            const actions = document.createElement('span');
+            actions.className = 'inline-actions';
+            [
+                [data.accept_url, 'fa-check', ''],
+                [data.reject_url, 'fa-xmark', ' bg-secondary'],
+            ].forEach(function(item) {
+                const form = document.createElement('form');
+                form.method = 'post';
+                form.action = item[0];
+                const csrf = document.createElement('input');
+                csrf.type = 'hidden';
+                csrf.name = 'csrfmiddlewaretoken';
+                csrf.value = csrfToken();
+                const button = document.createElement('button');
+                button.type = 'submit';
+                button.className = `mini-btn${item[2]}`;
+                button.innerHTML = `<i class="fas ${item[1]}"></i>`;
+                form.appendChild(csrf);
+                form.appendChild(button);
+                actions.appendChild(form);
+            });
+            row.appendChild(actions);
+            return row;
+        }
+
+        function addFriendRequest(data) {
+            if (!incomingList) return;
+            const existing = incomingList.querySelector(`[data-request-id="${data.request_id}"]`);
+            if (existing) existing.remove();
+            incomingList.prepend(requestRow(data));
+            if (incomingSection) incomingSection.classList.remove('d-none');
+        }
+
+        function removeRequest(section, list, requestId) {
+            if (!list) return;
+            const row = list.querySelector(`[data-request-id="${requestId}"]`);
+            if (row) row.remove();
+            if (section && !list.children.length) section.classList.add('d-none');
+        }
+
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            if (data.event === 'chat_update') upsertChat(data);
+            if (data.event === 'friend_request') addFriendRequest(data);
+            if (data.event === 'friend_request_removed') removeRequest(incomingSection, incomingList, data.request_id);
+            if (data.event === 'friend_request_resolved') {
+                removeRequest(outgoingSection, outgoingList, data.request_id);
+                if (data.status === 'accepted') window.location.reload();
+            }
+        };
+    })();
+</script>
 {% endblock %}

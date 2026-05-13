@@ -238,7 +238,12 @@
 
     socket.onmessage = function(event) {
         const data = JSON.parse(event.data);
-        if (data.type === 'message') addMessage(data);
+        if (data.type === 'message') {
+            addMessage(data);
+            if (Number(data.user_id) !== Number(userId) && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ type: 'read' }));
+            }
+        }
     };
 
     form.addEventListener('submit', function(event) {
