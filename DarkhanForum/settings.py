@@ -34,10 +34,7 @@ if DEBUG_VALUE is None:
 else:
     DEBUG = DEBUG_VALUE.lower() in ('1', 'true', 'yes', 'on')
 
-ALLOWED_HOSTS = os.environ.get(
-    'ALLOWED_HOSTS',
-    'localhost,127.0.0.1,testserver',
-).split(',')
+ALLOWED_HOSTS = ['*']
 
 CSRF_TRUSTED_ORIGINS = [
     origin
