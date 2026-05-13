@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% block title %}Нэвтрэх - DarkhanForum{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <section class="auth-card">
+        <span class="eyebrow">Тавтай морил</span>
+        <h1 class="mt-1 mb-2"><i class="fas fa-right-to-bracket text-primary"></i> Нэвтрэх</h1>
+        <p>Чат руугаа үргэлжлүүлэн орохын тулд хэрэглэгчийн нэр, нууц үгээ оруулна уу.</p>
+
+        <form method="POST" novalidate>
+            {% csrf_token %}
+
+            {% if form.errors %}
+                <div class="alert alert-danger">Хэрэглэгчийн нэр эсвэл нууц үг буруу байна.</div>
+            {% endif %}
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Хэрэглэгчийн нэр</label>
+                {{ form.username }}
+            </div>
+
+            <div class="mb-4">
+                <label class="form-label fw-bold">Нууц үг</label>
+                {{ form.password }}
+            </div>
+
+            <button type="submit" class="primary-action w-100">
+                <i class="fas fa-right-to-bracket"></i> Нэвтрэх
+            </button>
+        </form>
+
+        <div class="text-center mt-4">
+            Бүртгэлгүй юу?
+            <a href="{% url 'register' %}" class="fw-bold text-decoration-none">Бүртгүүлэх</a>
+        </div>
+    </section>
+</div>
+{% endblock %}

@@ -1,0 +1,277 @@
+{% extends 'base.html' %}
+{% block title %}{{ room_title }} - DarkhanForum{% endblock %}
+
+{% block content %}
+<div class="chat-shell">
+    <aside class="chat-sidebar compact">
+        <a href="{% url 'chat_home' %}" class="back-link"><i class="fas fa-arrow-left"></i> Чатын жагсаалт</a>
+
+        <div class="room-info">
+            {% if room.chat_type == 'group' %}
+                <form method="post" action="{% url 'update_group_image' room.id %}" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <label class="group-photo-button" title="Группийн зураг солих">
+                        {% if room.image %}
+                            <img src="{{ room.image.url }}" class="group-photo-img" alt="Групп">
+                        {% else %}
+                            <span class="avatar xl bg-green"><i class="fas fa-camera"></i></span>
+                        {% endif %}
+                        {{ group_image_form.image }}
+                    </label>
+                </form>
+            {% elif room.chat_type == 'direct' and other_member.has_profile_picture %}
+                <img src="{{ other_member.profile_picture.url }}" class="avatar-img xl" alt="{{ other_member.username }}">
+            {% else %}
+                <span class="avatar xl {% if room.chat_type == 'public' %}bg-blue{% endif %}">
+                    {% if room.chat_type == 'public' %}<i class="fas fa-globe"></i>{% else %}{{ room_title|first|upper }}{% endif %}
+                </span>
+            {% endif %}
+
+            <h2>{{ room_title }}</h2>
+            <p>
+                {% if room.chat_type == 'public' %}
+                    Нийтийн чат
+                {% elif room.chat_type == 'group' %}
+                    {{ room.members.count }} гишүүнтэй групп
+                {% else %}
+                    Хувийн чат
+                {% endif %}
+            </p>
+        </div>
+
+        {% if room.chat_type == 'group' %}
+            <div class="section-title">Гишүүд</div>
+            {% for member in room.members.all %}
+                <div class="person-row flat">
+                    {% if member.has_profile_picture %}
+                        <img src="{{ member.profile_picture.url }}" class="avatar-img" alt="{{ member.username }}">
+                    {% else %}
+                        <span class="avatar muted">{{ member.username|first|upper }}</span>
+                    {% endif %}
+                    <span class="person-name">{{ member.username }}</span>
+                </div>
+            {% endfor %}
+
+            {% if group_members_form.members.field.queryset %}
+                <button type="button" class="primary-action w-100 mt-3" data-bs-toggle="modal" data-bs-target="#addMemberModal">
+                    <i class="fas fa-user-plus"></i> Гишүүн нэмэх
+                </button>
+            {% else %}
+                <p class="empty-note mt-3">Нэмэх боломжтой найз алга.</p>
+            {% endif %}
+        {% endif %}
+    </aside>
+
+    <main class="chat-main">
+        <div class="chat-header">
+            <div>
+                <span class="eyebrow">
+                    {% if room.chat_type == 'public' %}Нийтийн өрөө{% elif room.chat_type == 'group' %}Групп чат{% else %}Хувийн чат{% endif %}
+                </span>
+                <h1>{{ room_title }}</h1>
+            </div>
+        </div>
+
+        <div id="messages" class="message-list">
+            {% for message in messages %}
+                <div class="message-row {% if message.sender_id == user.id %}mine{% endif %}">
+                    {% if message.sender.has_profile_picture %}
+                        <img src="{{ message.sender.profile_picture.url }}" class="message-avatar" alt="{{ message.sender.username }}">
+                    {% else %}
+                        <span class="avatar message-avatar">{{ message.sender.username|first|upper }}</span>
+                    {% endif %}
+                    <div class="bubble">
+                        <div class="bubble-meta">
+                            <strong>{{ message.sender.username }}</strong>
+                            <span>{{ message.timestamp|date:"Y-m-d H:i" }}</span>
+                        </div>
+                        <div class="bubble-text">{{ message.content }}</div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="empty-chat" id="empty-chat">Эхний зурвасаа бичээд яриагаа эхлүүлээрэй.</div>
+            {% endfor %}
+        </div>
+
+        <form id="chat-form" class="chat-form">
+            {% csrf_token %}
+            {{ message_form.content }}
+            <button type="submit" class="send-btn" title="Илгээх">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </form>
+    </main>
+
+    <aside class="people-panel">
+        <div class="panel-head">
+            <h3>Найзууд</h3>
+        </div>
+
+        <div class="section-title">Идэвхтэй</div>
+        {% for item in online_friends %}
+            <a href="{% url 'start_direct_chat' item.friend.id %}" class="person-row">
+                {% if item.friend.has_profile_picture %}
+                    <img src="{{ item.friend.profile_picture.url }}" class="avatar-img" alt="{{ item.friend.username }}">
+                {% else %}
+                    <span class="avatar muted">{{ item.friend.username|first|upper }}</span>
+                {% endif %}
+                <span>
+                    <span class="person-name">{{ item.friend.username }}</span>
+                    <small class="status-text">Online</small>
+                </span>
+                <span class="status-dot status-online"></span>
+            </a>
+        {% empty %}
+            <p class="empty-note">Online найз алга.</p>
+        {% endfor %}
+        {% if room.chat_type == 'public' %}
+            <div class="section-title">Өрөөнд байгаа хүмүүс</div>
+            {% for member in room.members.all %}
+                <div class="person-row">
+                    {% if member.has_profile_picture %}
+                        <img src="{{ member.profile_picture.url }}" class="avatar-img" alt="{{ member.username }}">
+                    {% else %}
+                        <span class="avatar muted">{{ member.username|first|upper }}</span>
+                    {% endif %}
+                    <span>
+                        <span class="person-name">{{ member.username }}</span>
+                        {% if member.id in online_user_ids %}
+                            <small class="status-text">Online</small>
+                        {% else %}
+                            <small class="status-text">Offline</small>
+                        {% endif %}
+                    </span>
+                    {% if member.id in online_user_ids %}
+                        <span class="status-dot status-online"></span>
+                    {% else %}
+                        <span class="status-dot status-offline"></span>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% endif %}
+    </aside>
+</div>
+
+{% if room.chat_type == 'group' and group_members_form.members.field.queryset %}
+<div class="modal fade" id="addMemberModal" tabindex="-1" aria-labelledby="addMemberModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <form method="post" action="{% url 'add_group_members' room.id %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addMemberModalLabel">Гишүүн нэмэх</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Хаах"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="search" id="memberSearch" class="form-control modal-search" placeholder="Найзын нэрээр хайх">
+
+                    <div id="memberList">
+                        {% for checkbox in group_members_form.members %}
+                            <label class="member-option" data-name="{{ checkbox.choice_label|lower }}">
+                                {{ checkbox.tag }}
+                                {% with friend=checkbox.data.value %}
+                                {% endwith %}
+                                <span>{{ checkbox.choice_label }}</span>
+                            </label>
+                        {% endfor %}
+                    </div>
+                    <p id="memberEmpty" class="empty-note d-none">Ийм нэртэй найз олдсонгүй.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Болих</button>
+                    <button type="submit" class="primary-action">
+                        <i class="fas fa-user-plus"></i> Нэмэх
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{{ room.id|json_script:"room-id" }}
+{{ user.id|json_script:"user-id" }}
+<script>
+    const roomId = JSON.parse(document.getElementById('room-id').textContent);
+    const userId = JSON.parse(document.getElementById('user-id').textContent);
+    const messages = document.getElementById('messages');
+    const form = document.getElementById('chat-form');
+    const input = document.querySelector('.chat-input');
+    const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${wsScheme}://${window.location.host}/ws/chat/${roomId}/`);
+
+    function scrollToBottom() {
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function addMessage(data) {
+        const empty = document.getElementById('empty-chat');
+        if (empty) empty.remove();
+
+        const row = document.createElement('div');
+        row.className = `message-row ${Number(data.user_id) === Number(userId) ? 'mine' : ''}`;
+
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+
+        const meta = document.createElement('div');
+        meta.className = 'bubble-meta';
+
+        const name = document.createElement('strong');
+        name.textContent = data.username;
+
+        const time = document.createElement('span');
+        time.textContent = data.timestamp;
+
+        const text = document.createElement('div');
+        text.className = 'bubble-text';
+        text.textContent = data.message;
+
+        meta.appendChild(name);
+        meta.appendChild(time);
+        bubble.appendChild(meta);
+        bubble.appendChild(text);
+        row.appendChild(bubble);
+        messages.appendChild(row);
+        scrollToBottom();
+    }
+
+    socket.onmessage = function(event) {
+        const data = JSON.parse(event.data);
+        if (data.type === 'message') addMessage(data);
+    };
+
+    form.addEventListener('submit', function(event) {
+        event.preventDefault();
+        const message = input.value.trim();
+        if (!message || socket.readyState !== WebSocket.OPEN) return;
+        socket.send(JSON.stringify({ message }));
+        input.value = '';
+        input.focus();
+    });
+
+    scrollToBottom();
+
+    const memberSearch = document.getElementById('memberSearch');
+    const memberOptions = document.querySelectorAll('.member-option');
+    const memberEmpty = document.getElementById('memberEmpty');
+
+    if (memberSearch) {
+        memberSearch.addEventListener('input', function() {
+            const searchText = memberSearch.value.trim().toLowerCase();
+            let visibleCount = 0;
+
+            memberOptions.forEach(function(option) {
+                const name = option.dataset.name || '';
+                const visible = name.includes(searchText);
+                option.classList.toggle('d-none', !visible);
+                if (visible) visibleCount += 1;
+            });
+
+            if (memberEmpty) {
+                memberEmpty.classList.toggle('d-none', visibleCount > 0);
+            }
+        });
+    }
+</script>
+{% endblock %}

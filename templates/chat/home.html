@@ -1,0 +1,175 @@
+{% extends 'base.html' %}
+{% block title %}Чат - DarkhanForum{% endblock %}
+
+{% block content %}
+<div class="chat-shell">
+    <aside class="chat-sidebar">
+        <div class="sidebar-head">
+            <div>
+                <span class="eyebrow">DarkhanForum</span>
+                <h2>Чатууд</h2>
+            </div>
+            <a href="{% url 'create_group_chat' %}" class="icon-btn" title="Групп чат үүсгэх">
+                <i class="fas fa-plus"></i>
+            </a>
+        </div>
+
+        <a href="{% url 'chat_room' public_room.id %}" class="room-link">
+            <span class="avatar bg-blue"><i class="fas fa-globe"></i></span>
+            <span>
+                <strong>Нийтийн чат</strong>
+                <small>Бүх хэрэглэгч нэгдэх боломжтой</small>
+            </span>
+        </a>
+
+        <div class="section-title">Группүүд</div>
+        {% for item in group_chats %}
+            <a href="{% url 'chat_room' item.room.id %}" class="room-link">
+                {% if item.room.image %}
+                    <img src="{{ item.room.image.url }}" class="avatar-img" alt="Групп">
+                {% else %}
+                    <span class="avatar bg-green"><i class="fas fa-user-group"></i></span>
+                {% endif %}
+                <span>
+                    <strong>{{ item.title }}</strong>
+                    <small>{{ item.room.members.count }} гишүүнтэй</small>
+                </span>
+            </a>
+        {% empty %}
+            <p class="empty-note">Одоогоор групп чат алга.</p>
+        {% endfor %}
+
+        <div class="section-title">Хүн хайх</div>
+        <form method="get" action="{% url 'chat_home' %}" class="search-form">
+            <input type="search" name="q" value="{{ search_text }}" class="form-control" placeholder="Нэрээр хайх">
+            <button type="submit" class="mini-btn" title="Хайх"><i class="fas fa-search"></i></button>
+        </form>
+
+        {% if search_text %}
+            {% for person in search_results %}
+                <div class="person-row">
+                    {% if person.has_profile_picture %}
+                        <img src="{{ person.profile_picture.url }}" class="avatar-img" alt="{{ person.username }}">
+                    {% else %}
+                        <span class="avatar muted">{{ person.username|first|upper }}</span>
+                    {% endif %}
+                    <span>
+                        <span class="person-name">{{ person.username }}</span>
+                        {% if person.id in online_friend_ids %}
+                            <small class="status-text">Online</small>
+                        {% else %}
+                            <small class="status-text">Offline</small>
+                        {% endif %}
+                    </span>
+
+                    {% if person.id in friend_ids %}
+                        <a href="{% url 'start_direct_chat' person.id %}" class="text-action">Чат бичих</a>
+                    {% elif person.id in outgoing_ids %}
+                        <span class="status-text">Хүлээж байна</span>
+                    {% elif person.id in incoming_ids %}
+                        <span class="status-text">Хүсэлт ирсэн</span>
+                    {% else %}
+                        <form method="post" action="{% url 'send_friend_request' person.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="mini-btn" title="Найзын хүсэлт илгээх">
+                                <i class="fas fa-user-plus"></i>
+                            </button>
+                        </form>
+                    {% endif %}
+                </div>
+            {% empty %}
+                <p class="empty-note">Ийм нэртэй хэрэглэгч олдсонгүй.</p>
+            {% endfor %}
+        {% endif %}
+
+        <div class="section-title">Сүүлд чатласан</div>
+        {% for item in recent_chats %}
+            <a href="{% url 'chat_room' item.room.id %}" class="room-link">
+                {% if item.friend.has_profile_picture %}
+                    <img src="{{ item.friend.profile_picture.url }}" class="avatar-img" alt="{{ item.friend.username }}">
+                {% else %}
+                    <span class="avatar muted">{{ item.friend.username|first|upper }}</span>
+                {% endif %}
+                <span>
+                    <strong>{{ item.friend.username }}</strong>
+                    <small>Хувийн чат</small>
+                </span>
+            </a>
+        {% empty %}
+            <p class="empty-note">Сүүлд чатласан хүн алга.</p>
+        {% endfor %}
+    </aside>
+
+    <main class="chat-main welcome-panel">
+        <div class="welcome-copy">
+            <span class="avatar xl bg-blue"><i class="fas fa-comments"></i></span>
+            <h1>Яриагаа сонгоорой</h1>
+            <p>Нийтийн эсвэл групп чат сонгоно. Offline найз руу бичих бол зүүн талын хайлтаар нэрийг нь олоод чат руу орно.</p>
+        </div>
+    </main>
+
+    <aside class="people-panel">
+        <div class="panel-head">
+            <h3>Online найзууд</h3>
+        </div>
+
+        {% for item in online_friends %}
+            <a href="{% url 'start_direct_chat' item.friend.id %}" class="person-row">
+                {% if item.friend.has_profile_picture %}
+                    <img src="{{ item.friend.profile_picture.url }}" class="avatar-img" alt="{{ item.friend.username }}">
+                {% else %}
+                    <span class="avatar">{{ item.friend.username|first|upper }}</span>
+                {% endif %}
+                <span>
+                    <span class="person-name">{{ item.friend.username }}</span>
+                    <small class="status-text">Online</small>
+                </span>
+                <span class="status-dot status-online"></span>
+            </a>
+        {% empty %}
+            <p class="empty-note">Online найз алга.</p>
+        {% endfor %}
+
+        {% if incoming_requests %}
+            <div class="section-title">Ирсэн хүсэлтүүд</div>
+            {% for friend_request in incoming_requests %}
+                <div class="person-row">
+                    {% if friend_request.sender.has_profile_picture %}
+                        <img src="{{ friend_request.sender.profile_picture.url }}" class="avatar-img" alt="{{ friend_request.sender.username }}">
+                    {% else %}
+                        <span class="avatar">{{ friend_request.sender.username|first|upper }}</span>
+                    {% endif %}
+                    <span class="person-name">{{ friend_request.sender.username }}</span>
+                    <span class="inline-actions">
+                        <form method="post" action="{% url 'accept_friend_request' friend_request.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="mini-btn" title="Зөвшөөрөх"><i class="fas fa-check"></i></button>
+                        </form>
+                        <form method="post" action="{% url 'reject_friend_request' friend_request.id %}">
+                            {% csrf_token %}
+                            <button type="submit" class="mini-btn bg-secondary" title="Татгалзах"><i class="fas fa-xmark"></i></button>
+                        </form>
+                    </span>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        {% if outgoing_requests %}
+            <div class="section-title">Илгээсэн хүсэлтүүд</div>
+            {% for friend_request in outgoing_requests %}
+                <div class="person-row">
+                    {% if friend_request.receiver.has_profile_picture %}
+                        <img src="{{ friend_request.receiver.profile_picture.url }}" class="avatar-img" alt="{{ friend_request.receiver.username }}">
+                    {% else %}
+                        <span class="avatar muted">{{ friend_request.receiver.username|first|upper }}</span>
+                    {% endif %}
+                    <span>
+                        <span class="person-name">{{ friend_request.receiver.username }}</span>
+                        <small class="muted-text">Хариу хүлээж байна</small>
+                    </span>
+                </div>
+            {% endfor %}
+        {% endif %}
+    </aside>
+</div>
+{% endblock %}

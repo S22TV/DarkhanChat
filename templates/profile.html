@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %}Профайл - {{ user.username }}{% endblock %}
+
+{% block content %}
+<div class="form-page">
+    <section class="form-card">
+        <a href="{% url 'chat_home' %}" class="back-link"><i class="fas fa-arrow-left"></i> Чат руу буцах</a>
+        <div class="d-flex align-items-center gap-3 mb-4">
+            {% if user.has_profile_picture %}
+                <img id="profile-preview" src="{{ user.profile_picture.url }}" class="preview-img" alt="Профайл">
+            {% else %}
+                <img id="profile-preview" src="https://via.placeholder.com/76" class="preview-img" alt="Профайл">
+            {% endif %}
+            <div>
+                <span class="eyebrow">Миний бүртгэл</span>
+                <h1>{{ user.username }}</h1>
+            </div>
+        </div>
+
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            {% if form.errors %}
+                <div class="alert alert-danger">{{ form.errors }}</div>
+            {% endif %}
+
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label fw-bold">Хэрэглэгчийн нэр</label>
+                    <input type="text" class="form-control" value="{{ user.username }}" readonly>
+                    <small class="text-muted">Хэрэглэгчийн нэрийг өөрчлөхгүй.</small>
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label fw-bold">Имэйл</label>
+                    {{ form.email }}
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Утасны дугаар</label>
+                {{ form.phone_number }}
+            </div>
+
+            <div class="mb-4">
+                <span class="form-label fw-bold d-block">Профайл зураг</span>
+                <label class="file-picker">
+                    <i class="fas fa-image"></i> Зураг солих
+                    {{ form.profile_picture }}
+                </label>
+            </div>
+
+            <hr>
+            <h5 class="mb-3">Нууц үг солих</h5>
+            <div class="row">
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Шинэ нууц үг</label>
+                    {{ form.new_password }}
+                </div>
+                <div class="col-md-6 mb-3">
+                    <label class="form-label">Нууц үг давтах</label>
+                    {{ form.confirm_password }}
+                </div>
+            </div>
+
+            <button type="submit" class="primary-action">
+                <i class="fas fa-save"></i> Хадгалах
+            </button>
+        </form>
+    </section>
+</div>
+
+<script>
+    const profileInput = document.getElementById('id_profile_picture');
+    const profilePreview = document.getElementById('profile-preview');
+
+    if (profileInput && profilePreview) {
+        profileInput.addEventListener('change', function() {
+            const file = profileInput.files[0];
+            if (file) {
+                profilePreview.src = URL.createObjectURL(file);
+            }
+        });
+    }
+</script>
+{% endblock %}

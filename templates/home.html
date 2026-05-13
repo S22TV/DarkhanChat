@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% block title %}DarkhanForum - Нүүр{% endblock %}
+
+{% block content %}
+<div class="hero-page">
+    <section class="hero-panel">
+        <span class="avatar xl bg-blue"><i class="fas fa-comments"></i></span>
+        <h1 class="mt-3">DarkhanForum</h1>
+        <p class="lead mt-3 mb-0">Найзуудтайгаа шууд чатлаж, нийтийн өрөө, хувийн чат, групп яриагаа нэг дор удирдаарай.</p>
+
+        <div class="hero-actions">
+            {% if user.is_authenticated %}
+                <a href="{% url 'chat_home' %}" class="btn-app btn-primary-app">
+                    <i class="fas fa-arrow-right"></i> Чат руу орох
+                </a>
+            {% else %}
+                <a href="{% url 'register' %}" class="btn-app btn-primary-app">
+                    <i class="fas fa-user-plus"></i> Бүртгүүлэх
+                </a>
+                <a href="{% url 'login' %}" class="btn-app btn-outline-app">
+                    <i class="fas fa-right-to-bracket"></i> Нэвтрэх
+                </a>
+            {% endif %}
+        </div>
+    </section>
+</div>
+{% endblock %}

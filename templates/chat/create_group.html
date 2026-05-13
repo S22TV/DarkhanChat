@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Шинэ групп - DarkhanForum{% endblock %}
+
+{% block content %}
+<div class="form-page">
+    <section class="form-card">
+        <a href="{% url 'chat_home' %}" class="back-link"><i class="fas fa-arrow-left"></i> Чатын жагсаалт</a>
+        <span class="eyebrow">Групп чат</span>
+        <h1 class="mt-1">Групп үүсгэх</h1>
+        <p class="muted-text">Найзуудаа сонгоод хамтдаа ярилцах шинэ өрөө нээнэ.</p>
+
+        <form method="post">
+            {% csrf_token %}
+            <label class="form-label fw-bold">Группийн нэр</label>
+            {{ form.name }}
+            {% if form.name.errors %}<div class="form-error">{{ form.name.errors }}</div>{% endif %}
+
+            <div class="section-title">Найзууд</div>
+            <div class="check-list">
+                {{ form.members }}
+            </div>
+            {% if form.members.errors %}<div class="form-error">{{ form.members.errors }}</div>{% endif %}
+
+            <button type="submit" class="primary-action">
+                <i class="fas fa-user-group"></i> Групп үүсгэх
+            </button>
+        </form>
+    </section>
+</div>
+{% endblock %}

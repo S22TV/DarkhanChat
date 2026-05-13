@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block title %}Бүртгүүлэх - DarkhanForum{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+    <section class="auth-card">
+        <span class="eyebrow">Шинэ хэрэглэгч</span>
+        <h1 class="mt-1 mb-2"><i class="fas fa-user-plus text-primary"></i> Бүртгүүлэх</h1>
+        <p>Профайлаа үүсгээд найзуудтайгаа чатлаж эхлээрэй.</p>
+
+        <form method="POST" enctype="multipart/form-data" novalidate>
+            {% csrf_token %}
+
+            {% if form.errors %}
+                <div class="alert alert-danger">
+                    {% for field in form %}
+                        {% for error in field.errors %}
+                            <p class="mb-1"><strong>{{ field.label }}:</strong> {{ error }}</p>
+                        {% endfor %}
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div class="text-center mb-3">
+                <img id="register-preview" src="https://via.placeholder.com/76" class="preview-img" alt="Профайл">
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label fw-bold">Хэрэглэгчийн нэр</label>
+                {{ form.username }}
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Имэйл</label>
+                {{ form.email }}
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Утасны дугаар</label>
+                {{ form.phone_number }}
+            </div>
+            <div class="mb-3">
+                <span class="form-label fw-bold d-block">Профайл зураг</span>
+                <label class="file-picker">
+                    <i class="fas fa-image"></i> Зураг сонгох
+                    {{ form.profile_picture }}
+                </label>
+            </div>
+            <div class="mb-3">
+                <label class="form-label fw-bold">Нууц үг</label>
+                {{ form.password1 }}
+            </div>
+            <div class="mb-4">
+                <label class="form-label fw-bold">Нууц үг давтах</label>
+                {{ form.password2 }}
+            </div>
+
+            <button type="submit" class="primary-action w-100">
+                <i class="fas fa-user-plus"></i> Бүртгүүлэх
+            </button>
+        </form>
+
+        <div class="text-center mt-4">
+            Бүртгэлтэй юу?
+            <a href="{% url 'login' %}" class="fw-bold text-decoration-none">Нэвтрэх</a>
+        </div>
+    </section>
+</div>
+
+<script>
+    const registerInput = document.getElementById('id_profile_picture');
+    const registerPreview = document.getElementById('register-preview');
+
+    if (registerInput && registerPreview) {
+        registerInput.addEventListener('change', function() {
+            const file = registerInput.files[0];
+            if (file) {
+                registerPreview.src = URL.createObjectURL(file);
+            }
+        });
+    }
+</script>
+{% endblock %}
